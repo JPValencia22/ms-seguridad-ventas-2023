@@ -20,6 +20,7 @@ import {
   requestBody,
   response,
 } from '@loopback/rest';
+import {ConfiguracionSeguridad} from '../config/seguridad.config';
 import {Credenciales, FactorDeAutenticacionPorCodigo, Login, Usuario} from '../models';
 import {LoginRepository, UsuarioRepository} from '../repositories';
 import {SeguridadUsuarioService} from '../services';
@@ -74,7 +75,10 @@ export class UsuarioController {
     return this.usuarioRepository.count(where);
   }
 
-  @authenticate("auth")
+  @authenticate({
+    strategy: "auth",
+    options: [ConfiguracionSeguridad.menuUsuarioId, "listar"]
+  })
   @get('/usuario')
   @response(200, {
     description: 'Array of Usuario model instances',
