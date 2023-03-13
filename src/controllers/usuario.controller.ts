@@ -1,3 +1,4 @@
+import {authenticate} from '@loopback/authentication';
 import {service} from '@loopback/core';
 import {
   Count,
@@ -26,12 +27,12 @@ import {SeguridadUsuarioService} from '../services';
 export class UsuarioController {
   constructor(
     @repository(UsuarioRepository)
-    public usuarioRepository : UsuarioRepository,
+    public usuarioRepository: UsuarioRepository,
     @service(SeguridadUsuarioService)
-    public servicioSeguridad : SeguridadUsuarioService,
+    public servicioSeguridad: SeguridadUsuarioService,
     @repository(LoginRepository)
     public repositorioLogin: LoginRepository
-  ) {}
+  ) { }
 
   @post('/usuario')
   @response(200, {
@@ -73,6 +74,7 @@ export class UsuarioController {
     return this.usuarioRepository.count(where);
   }
 
+  @authenticate("auth")
   @get('/usuario')
   @response(200, {
     description: 'Array of Usuario model instances',
@@ -172,15 +174,15 @@ export class UsuarioController {
 
   @post('/identificar-usuario')
   @response(200, {
-    description:"Identificar un usuario por correo y clave",
-    content:{'application/json':{schema: getModelSchemaRef(Usuario)}}
+    description: "Identificar un usuario por correo y clave",
+    content: {'application/json': {schema: getModelSchemaRef(Usuario)}}
   })
 
   async identicarUsuario(
     @requestBody(
       {
-        content:{
-          'application/json':{
+        content: {
+          'application/json': {
             schema: getModelSchemaRef(Credenciales)
           }
         }
@@ -189,16 +191,18 @@ export class UsuarioController {
     credenciales: Credenciales
   ): Promise<object> {
     const usuario = await this.servicioSeguridad.identificarUsuario(credenciales);
-    if(usuario) {
+    if (usuario) {
       const codigo2fa = this.servicioSeguridad.crearTextoAleatorio(5);
-      const login:Login = new Login();
+      console.log(codigo2fa);
+      const login: Login = new Login();
       login.usuarioId = usuario._id!;
       login.codigo2fa = codigo2fa;
       login.estadoCodigo2fa = false;
       login.token = "";
       login.estadoToken = false;
-      await this.repositorioLogin.create(login);
-      // notificar al usuario via correo o sms
+      this.repositorioLogin.create(login);
+      usuario.clave = "";
+      // notificar al usuario vía correo o sms
       return usuario;
     }
     return new HttpErrors[401]("Credenciales incorrectas");
@@ -212,14 +216,14 @@ export class UsuarioController {
 
   @post('/verificar-2fa')
   @response(200, {
-    description:"Validar un codigo de 2fa"
+    description: "Validar un codigo de 2fa"
   })
 
   async verificarCodigo2fa(
     @requestBody(
       {
-        content:{
-          'application/json':{
+        content: {
+          'application/json': {
             schema: getModelSchemaRef(FactorDeAutenticacionPorCodigo)
           }
         }
@@ -228,10 +232,22 @@ export class UsuarioController {
     credenciales: FactorDeAutenticacionPorCodigo
   ): Promise<object> {
     const usuario = await this.servicioSeguridad.validarCodigo2fa(credenciales);
-    if(usuario) {
+    if (usuario) {
       const token = this.servicioSeguridad.crearToken(usuario);
-      if (usuario){
+      if (usuario) {
         usuario.clave = "";
+        try {
+          this.usuarioRepository.logins(usuario._id).patch(
+            {
+              estadoCodigo2fa: true,
+              token: token
+            },
+            {
+              estadoCodigo2fa: false
+            });
+        } catch {
+          console.log("No se ha almacenado el cambio del estado del token en la base de datos")
+        }
         return {
           user: usuario,
           token: token
