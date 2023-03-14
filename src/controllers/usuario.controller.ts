@@ -77,7 +77,7 @@ export class UsuarioController {
 
   @authenticate({
     strategy: "auth",
-    options: [ConfiguracionSeguridad.menuUsuarioId, "listar"]
+    options: [ConfiguracionSeguridad.menuUsuarioId, ConfiguracionSeguridad.listarAccion]
   })
   @get('/usuario')
   @response(200, {
